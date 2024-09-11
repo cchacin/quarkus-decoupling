@@ -1,5 +1,6 @@
 package org.acme;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -9,6 +10,7 @@ import java.net.URI;
 import java.util.List;
 
 @Path("/people")
+@ApplicationScoped
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class PeopleResource {
@@ -35,31 +37,5 @@ public class PeopleResource {
     public Response create(Person person) {
         repository.persist(person);
         return Response.created(URI.create("/persons/" + person.getId())).build();
-    }
-
-    @PUT
-    @Path("/{id}")
-    @Transactional
-    public Person update(Long id, Person person) {
-        Person entity = repository.findById(id);
-        if (entity == null) {
-            throw new NotFoundException();
-        }
-
-        // map all fields from the person parameter to the existing entity
-        entity.setName(person.getName());
-
-        return entity;
-    }
-
-    @DELETE
-    @Path("/{id}")
-    @Transactional
-    public void delete(Long id) {
-        Person entity = repository.findById(id);
-        if (entity == null) {
-            throw new NotFoundException();
-        }
-        repository.delete(entity);
     }
 }
