@@ -15,6 +15,22 @@ public class Person {
     private LocalDate birth;
     private Status status;
 
+    public Person() {
+    }
+
+    public Person(String name, LocalDate birth, Status status) {
+        this.name = name;
+        this.birth = birth;
+        this.status = status;
+    }
+
+    public Person(Long id, String name, LocalDate birth, Status status) {
+        this.id = id;
+        this.name = name;
+        this.birth = birth;
+        this.status = status;
+    }
+
     public Long getId() {
         return id;
     }
