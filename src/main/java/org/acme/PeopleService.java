@@ -1,34 +1,34 @@
 package org.acme;
 
-import io.quarkus.redis.datasource.RedisDataSource;
-import io.quarkus.redis.datasource.value.ValueCommands;
-
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class PeopleService {
-    public static final String PERSON_KEY = "person:";
-    private final PeopleRepository repository;
-    private final ValueCommands<String, Person> valueCommands;
+    private final Function<Long, Optional<Person>> findByIdInCache;
+    private final Function<Long, Optional<Person>> findByIdInDatabase;
+    private final Consumer<Person> saveInCache;
+    private final Consumer<Person> saveInDatabase;
 
-    public PeopleService(PeopleRepository repository, RedisDataSource redis) {
-        this.repository = repository;
-        this.valueCommands = redis.value(Person.class);
+    public PeopleService(
+            Function<Long, Optional<Person>> findByIdInCache,
+            Function<Long, Optional<Person>> findByIdInDatabase,
+            Consumer<Person> saveInCache,
+            Consumer<Person> saveInDatabase) {
+        this.findByIdInCache = findByIdInCache;
+        this.findByIdInDatabase = findByIdInDatabase;
+        this.saveInCache = saveInCache;
+        this.saveInDatabase = saveInDatabase;
     }
 
     public Optional<Person> get(Long id) {
-        var person = Optional.ofNullable(valueCommands.get(PERSON_KEY + id));
-        if (person.isPresent()) {
-            return person;
-        }
-        person = Optional.ofNullable(repository.findById(id));
-        if (person.isEmpty()) {
-            return person;
-        }
-        valueCommands.setex(PERSON_KEY + id, 60, person.get());
+        var person = findByIdInCache.apply(id)
+                .or(() -> findByIdInDatabase.apply(id));
+        person.ifPresent(saveInCache);
         return person;
     }
 
     public void persist(Person person) {
-        repository.persist(person);
+        saveInDatabase.accept(person);
     }
 }

@@ -1,46 +1,24 @@
 package org.acme;
 
-import io.quarkus.redis.datasource.RedisDataSource;
-import io.quarkus.redis.datasource.value.ValueCommands;
 import org.assertj.core.api.WithAssertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDate;
-
-import static org.mockito.Mockito.atMostOnce;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 @DisplayName("People Service")
 class PeopleServiceTest implements WithAssertions {
 
-    @Mock
-    PeopleRepository repository;
-
-    @Mock
-    RedisDataSource redis;
-
-    @Mock
-    ValueCommands<String, Person> valueCommands;
-
-    static final Person person1 = new Person(
+    static final Person PERSON_1 = new Person(
             1L,
             "Person 1",
             LocalDate.of(2000, 1, 1),
             Person.Status.Alive
     );
-
-    @BeforeEach
-    void setup() throws Exception {
-        MockitoAnnotations.openMocks(this).close();
-    }
 
     @Nested
     @DisplayName("When get(id) is called")
@@ -54,19 +32,24 @@ class PeopleServiceTest implements WithAssertions {
             @DisplayName("It should return what is the cache")
             void should_Return_What_Is_In_The_Cache() {
                 // Given
-                when(redis.value(Person.class)).thenReturn(valueCommands);
-                when(valueCommands.get("person:1")).thenReturn(person1);
+                var cache = new HashMap<Long, Person>();
+                var database = new HashMap<Long, Person>();
+
+                var peopleResource = new PeopleService(
+                        (Long id) -> Optional.ofNullable(cache.get(id)),
+                        (Long id) -> Optional.ofNullable(database.get(id)),
+                        (Person person) -> cache.put(person.getId(), person),
+                        (Person person) -> database.put(person.getId(), person)
+                );
+                cache.put(1L, PERSON_1);
 
                 // When
-                var result = new PeopleService(repository, redis).get(1L);
+                var result = peopleResource.get(1L);
 
                 // Then
-                assertThat(result).isNotNull().contains(person1);
-                verifyNoInteractions(repository);
-                verify(redis, atMostOnce()).value(Person.class);
-                verifyNoMoreInteractions(redis);
-                verify(valueCommands, atMostOnce()).get("person:1");
-                verifyNoMoreInteractions(valueCommands);
+                assertThat(result).isNotNull().contains(PERSON_1);
+                assertThat(cache).containsExactlyEntriesOf(Map.of(PERSON_1.getId(), PERSON_1));
+                assertThat(database).isEmpty();
             }
         }
 
@@ -82,22 +65,24 @@ class PeopleServiceTest implements WithAssertions {
                 @DisplayName("It should return person 1 from the database and store it in cache")
                 void should_Return_Person1_From_Database_And_Store_It_In_Cache() {
                     // Given
-                    when(repository.findById(1L)).thenReturn(person1);
-                    when(redis.value(Person.class)).thenReturn(valueCommands);
-                    when(valueCommands.get("person:1")).thenReturn(null);
+                    var cache = new HashMap<Long, Person>();
+                    var database = new HashMap<Long, Person>();
+
+                    var peopleResource = new PeopleService(
+                            (Long id) -> Optional.ofNullable(cache.get(id)),
+                            (Long id) -> Optional.ofNullable(database.get(id)),
+                            (Person person) -> cache.put(person.getId(), person),
+                            (Person person) -> database.put(person.getId(), person)
+                    );
+                    database.put(1L, PERSON_1);
 
                     // When
-                    var result = new PeopleService(repository, redis).get(1L);
+                    var result = peopleResource.get(1L);
 
                     // Then
-                    assertThat(result).isNotNull().contains(person1);
-                    verify(repository, atMostOnce()).findById(1L);
-                    verifyNoMoreInteractions(repository);
-                    verify(redis, atMostOnce()).value(Person.class);
-                    verifyNoMoreInteractions(redis);
-                    verify(valueCommands, atMostOnce()).get("person:1");
-                    verify(valueCommands, atMostOnce()).setex("person:1", 60, person1);
-                    verifyNoMoreInteractions(valueCommands);
+                    assertThat(result).isNotNull().contains(PERSON_1);
+                    assertThat(cache).containsExactlyEntriesOf(Map.of(PERSON_1.getId(), PERSON_1));
+                    assertThat(database).containsExactlyEntriesOf(Map.of(PERSON_1.getId(), PERSON_1));
                 }
             }
 
@@ -106,24 +91,26 @@ class PeopleServiceTest implements WithAssertions {
             class DatabaseDoesNotContainsPerson1 {
 
                 @Test
-                @DisplayName("It should return 404 Not Found")
-                void should_Return_404_Not_Found() {
+                @DisplayName("It should return empty")
+                void should_Return_Empty() {
                     // Given
-                    when(repository.findById(1L)).thenReturn(null);
-                    when(redis.value(Person.class)).thenReturn(valueCommands);
-                    when(valueCommands.get("person:1")).thenReturn(null);
+                    var cache = new HashMap<Long, Person>();
+                    var database = new HashMap<Long, Person>();
+
+                    var peopleResource = new PeopleService(
+                            (Long id) -> Optional.ofNullable(cache.get(id)),
+                            (Long id) -> Optional.ofNullable(database.get(id)),
+                            (Person person) -> cache.put(person.getId(), person),
+                            (Person person) -> database.put(person.getId(), person)
+                    );
 
                     // When
-                    var result = new PeopleService(repository, redis).get(1L);
+                    var result = peopleResource.get(1L);
 
                     // Then
                     assertThat(result).isNotNull().isEmpty();
-                    verify(repository, atMostOnce()).findById(1L);
-                    verifyNoMoreInteractions(repository);
-                    verify(redis, atMostOnce()).value(Person.class);
-                    verifyNoMoreInteractions(redis);
-                    verify(valueCommands, atMostOnce()).get("person:1");
-                    verifyNoMoreInteractions(valueCommands);
+                    assertThat(cache).isEmpty();
+                    assertThat(database).isEmpty();
                 }
             }
         }
