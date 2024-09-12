@@ -12,6 +12,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.net.URI;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 @Path("/people")
 @ApplicationScoped
@@ -19,23 +22,27 @@ import java.net.URI;
 @Consumes(MediaType.APPLICATION_JSON)
 public class PeopleResource {
 
-    private final PeopleService service;
+    private final Function<Long, Optional<Person>> findPersonById;
+    private final Consumer<Person> savePerson;
 
-    public PeopleResource(PeopleService service) {
-        this.service = service;
+    public PeopleResource(
+            Function<Long, Optional<Person>> findPersonById,
+            Consumer<Person> savePerson) {
+        this.findPersonById = findPersonById;
+        this.savePerson = savePerson;
     }
 
     @GET
     @Path("/{id}")
     public Person get(Long id) {
-        return this.service.get(id)
+        return this.findPersonById.apply(id)
                 .orElseThrow(() -> new NotFoundException("Not Found"));
     }
 
     @POST
     @Transactional
     public Response create(Person person) {
-        this.service.persist(person);
+        this.savePerson.accept(person);
         return Response.created(URI.create("/people/" + person.getId())).build();
     }
 }

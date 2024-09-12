@@ -2,38 +2,23 @@ package org.acme;
 
 import jakarta.ws.rs.NotFoundException;
 import org.assertj.core.api.WithAssertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Optional;
-
-import static org.mockito.Mockito.atMostOnce;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 @DisplayName("People Resource")
 class PeopleResourceTest implements WithAssertions {
 
-    @Mock
-    PeopleService service;
-
-    static final Person person1 = new Person(
+    static final Person PERSON_1 = new Person(
             1L,
             "Person 1",
             LocalDate.of(2000, 1, 1),
             Person.Status.Alive
     );
-
-    @BeforeEach
-    void setup() throws Exception {
-        MockitoAnnotations.openMocks(this).close();
-    }
 
     @Nested
     @DisplayName("When GET /people/1 is called")
@@ -43,15 +28,17 @@ class PeopleResourceTest implements WithAssertions {
         @DisplayName("It should return what the service returns")
         void should_Return_What_Service_Returns() {
             // Given
-            when(service.get(1L)).thenReturn(Optional.of(person1));
+            var service = new HashMap<Long, Person>();
+            service.put(1L, PERSON_1);
 
             // When
-            var result = new PeopleResource(service).get(1L);
+            var result = new PeopleResource(
+                    (Long id) -> Optional.ofNullable(service.get(id)),
+                    (Person person) -> service.put(person.getId(), person)
+            ).get(1L);
 
             // Then
-            assertThat(result).isNotNull().isEqualTo(person1);
-            verify(service, atMostOnce()).get(1L);
-            verifyNoMoreInteractions(service);
+            assertThat(result).isNotNull().isEqualTo(PERSON_1);
         }
 
 
@@ -59,16 +46,20 @@ class PeopleResourceTest implements WithAssertions {
         @DisplayName("It should return 404 when service returns empty")
         void should_Return_404_When_Service_Returns_Empty() {
             // Given
-            when(service.get(1L)).thenReturn(Optional.empty());
+            var service = new HashMap<Long, Person>();
 
             // When
-            var exception = assertThatThrownBy(() -> new PeopleResource(service).get(1L));
+            var exception = assertThatThrownBy(
+                    () -> new PeopleResource(
+                            (Long id) -> Optional.ofNullable(service.get(id)),
+                            (Person person) -> service.put(person.getId(), person)
+
+                    ).get(1L)
+            );
 
             // Then
             exception.isInstanceOf(NotFoundException.class)
                     .hasMessage("Not Found");
-            verify(service, atMostOnce()).get(1L);
-            verifyNoMoreInteractions(service);
         }
     }
 }
