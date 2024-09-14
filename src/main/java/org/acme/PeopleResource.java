@@ -1,11 +1,13 @@
-
 package org.acme;
 
-import io.quarkus.redis.datasource.RedisDataSource;
-import io.quarkus.redis.datasource.value.ValueCommands;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -17,34 +19,23 @@ import java.net.URI;
 @Consumes(MediaType.APPLICATION_JSON)
 public class PeopleResource {
 
-    public static final String PERSON_KEY = "person:";
-    private final PeopleRepository repository;
-    private final ValueCommands<String, Person> valueCommands;
+    private final PeopleService service;
 
-    public PeopleResource(PeopleRepository repository, RedisDataSource redis) {
-        this.repository = repository;
-        valueCommands = redis.value(Person.class);
+    public PeopleResource(PeopleService service) {
+        this.service = service;
     }
 
     @GET
     @Path("/{id}")
     public Person get(Long id) {
-        var person = valueCommands.get(PERSON_KEY + id);
-        if (person != null) {
-            return person;
-        }
-        person = repository.findById(id);
-        if (person == null) {
-            throw new NotFoundException("Not Found");
-        }
-        valueCommands.setex(PERSON_KEY + id, 60, person);
-        return person;
+        return this.service.get(id)
+                .orElseThrow(() -> new NotFoundException("Not Found"));
     }
 
     @POST
     @Transactional
     public Response create(Person person) {
-        repository.persist(person);
+        this.service.persist(person);
         return Response.created(URI.create("/people/" + person.getId())).build();
     }
 }
