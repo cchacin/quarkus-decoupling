@@ -2,9 +2,11 @@ package org.acme;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.redis.datasource.value.ValueCommands;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Optional;
 
+@ApplicationScoped
 public class PeopleService {
     public static final String PERSON_KEY = "person:";
     private final PeopleRepository repository;
